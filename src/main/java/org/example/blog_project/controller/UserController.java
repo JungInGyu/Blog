@@ -3,12 +3,20 @@ package org.example.blog_project.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.blog_project.domain.RefreshToken;
+import org.example.blog_project.domain.Role;
 import org.example.blog_project.domain.User;
-import org.example.blog_project.dto.UserDto;
+import org.example.blog_project.dto.UserLoginResponseDto;
+import org.example.blog_project.service.UserLoginDto;
+import org.example.blog_project.dto.UserRegisterDto;
+import org.example.blog_project.jwt.JwtTokenizer;
+import org.example.blog_project.service.RefreshTokenService;
 import org.example.blog_project.service.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -16,13 +24,17 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
+    private final RefreshTokenService refreshTokenService;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenizer jwtTokenizer;
 
     @GetMapping("/")
     public String index() {
@@ -44,32 +56,55 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody String id, @RequestBody String password, HttpServletResponse response) throws IOException {
-        boolean success = userService.login(id, password);
-        if (success) {
-            Cookie cookie = new Cookie("userId", id);
-            cookie.setPath("/");
-            cookie.setMaxAge(60*2);
-            response.addCookie(cookie);
-            return "redirect:/blog";
-        } else {
-            return "redirect:/loginform";
+    public ResponseEntity login(@RequestBody @Valid UserLoginDto userLoginDto, HttpServletResponse response, BindingResult bindingResult) throws IOException {
+        if (bindingResult.hasErrors()){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
+
+        User user = userService.findByUid(userLoginDto.getUsername());
+
+        if (!passwordEncoder.matches(userLoginDto.getPassword(), user.getPassword())){
+            return new ResponseEntity("비밀번호가 올바르지 않습니다",HttpStatus.UNAUTHORIZED);
+        }
+
+        List<String> roles = user.getRoles().stream().map(Role::getName).collect(Collectors.toList());
+
+        String refreshToken = jwtTokenizer.createRefreshToken(user.getUser_id(),user.getEmail(),user.getName(), user.getUid(),roles);
+        RefreshToken refreshTokenEntitiy = new RefreshToken();
+        refreshTokenEntitiy.setValue((refreshToken));
+        refreshTokenEntitiy.setUserId(user.getUser_id());
+
+        refreshTokenService.addRefreshToken(refreshTokenEntitiy);
+
+        UserLoginResponseDto loginResponseDto = UserLoginResponseDto.builder()
+                .refreshToken(refreshToken)
+                .userId(user.getUser_id())
+                .name(user.getName())
+                .build();
+
+        Cookie refreshTokenCookie = new Cookie("refreshToken",refreshToken);
+        refreshTokenCookie.setHttpOnly(true);
+        refreshTokenCookie.setPath("/");
+        refreshTokenCookie.setMaxAge(Math.toIntExact(JwtTokenizer.REFRESH_TOKEN_EXPIRE_TIME/10000));
+
+        response.addCookie(refreshTokenCookie);
+        return new ResponseEntity(loginResponseDto, HttpStatus.OK);
     }
 
     @PostMapping("/register")
-    public String register(@RequestBody @Validated UserDto userDto, BindingResult result) {
+    public String register(@ModelAttribute("user") @Validated UserRegisterDto userRegisterDto, BindingResult result) {
         if (result.hasErrors()) {
-            return "redirect:/loginform";
+            return "loginform";
         }
-        if (!userDto.getPassword().equals(userDto.getConfirmPassword())) {
+        if (!userRegisterDto.getPassword().equals(userRegisterDto.getConfirmPassword())) {
             return "redirect:/loginform";
         }
 
-        boolean success = userService.registerUser(userDto);
+        boolean success = userService.registerUser(userRegisterDto);
         if (success) {
-            return "redirect:/welcome";
+            return "redirect:/loginform";
         } else {
+            result.rejectValue("username",null, "이미 가입된 회원입니다.");
             return "redirect:/loginform";
         }
     }

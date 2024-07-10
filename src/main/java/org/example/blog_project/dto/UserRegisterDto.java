@@ -1,12 +1,13 @@
 package org.example.blog_project.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.*;
 
-@Data
+@Getter
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 
-public class UserDto {
+public class UserRegisterDto {
     private String uid;
     private String password;
     private String confirmPassword;

@@ -16,7 +16,7 @@ import java.util.List;
 @Slf4j
 public class JwtTokenizer {
 
-    @Value("${jwt.refresh.secret}")
+    @Value("${jwt.refresh}")
     private String refreshSecretString;
 
     private byte[] refreshSecret;

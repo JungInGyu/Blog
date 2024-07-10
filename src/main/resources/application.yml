@@ -9,9 +9,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 jwt:
-  secret: 302952221085239838
-  refresh:
-    secret=your_refresh_secret_key: 302952221085239838
+  secret:
+  refresh: 302952221085239838
 
 server:
   port: 8080
