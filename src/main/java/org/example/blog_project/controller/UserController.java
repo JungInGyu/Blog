@@ -92,21 +92,22 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public String register(@ModelAttribute("user") @Validated UserRegisterDto userRegisterDto, BindingResult result) {
-        if (result.hasErrors()) {
+    public String register(@ModelAttribute("user") @Validated User user, BindingResult result) {
+        if (result.hasErrors()){
             return "loginform";
         }
-        if (!userRegisterDto.getPassword().equals(userRegisterDto.getConfirmPassword())) {
-            return "redirect:/loginform";
+        User findUser = userService.findByUid(user.getUid());
+        if (findUser != null){
+            result.rejectValue("uId",null,"이미 사용중인 아이디입니다.");
+            return "userreg";
         }
+        userService.registerUser(user);
+        return "loginform";
+    }
 
-        boolean success = userService.registerUser(userRegisterDto);
-        if (success) {
-            return "redirect:/loginform";
-        } else {
-            result.rejectValue("username",null, "이미 가입된 회원입니다.");
-            return "redirect:/loginform";
-        }
+    @GetMapping
+    public String myPage(){
+        return "mypage";
     }
 
     private String getUserIdFromCookies(HttpServletRequest request) {
@@ -119,4 +120,6 @@ public class UserController {
         }
         return null;
     }
+
+
 }

@@ -31,21 +31,13 @@ public class UserService {
 
     //회원가입
     @Transactional
-    public boolean registerUser(UserRegisterDto userRegisterDto) {
-        if (isIdDuplicate(userRegisterDto.getUid()) || isEmailDuplicate(userRegisterDto.getEmail())){
-            return false;
-        }
+    public User registerUser(User user) {
         Role userRole = roleRepository.findByName("ROLE_USER");
-        User user = new User();
         user.setRoles(Collections.singleton(userRole));
-        user.setUid(userRegisterDto.getUid());
-        user.setPassword(passwordEncoder.encode(userRegisterDto.getPassword()));
-        user.setName(userRegisterDto.getName());
-        user.setEmail(userRegisterDto.getEmail());
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setRegistrationDate(LocalDateTime.now());
 
-        userRepository.save(user);
-        return true;
+        return userRepository.save(user);
     }
 
     public User findByUid(String uid){

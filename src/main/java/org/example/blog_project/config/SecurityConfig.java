@@ -29,9 +29,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/css/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/", "/login", "/loginform").permitAll()
+                        .requestMatchers("/css/**","/js/**","style/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/register", "/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/","/loginform","/mypage").permitAll()
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenizer), UsernamePasswordAuthenticationFilter.class)
