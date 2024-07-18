@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.List;
@@ -25,7 +26,7 @@ public class JwtTokenizer {
 
     @PostConstruct
     public void init() {
-        this.refreshSecret = refreshSecretString.getBytes();
+        this.refreshSecret = refreshSecretString.getBytes(StandardCharsets.UTF_8);
     }
 
     private String createToken(Long id, String email, String name, String uid, List<String> roles, Long expire, byte[] secretKey){

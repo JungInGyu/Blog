@@ -10,7 +10,7 @@ spring:
 
 jwt:
   secret:
-  refresh: 302952221085239838
+  refresh: 30295222WNGUSSLADPTJDSLARHAKDNJDY1085239838
 
 server:
   port: 8080

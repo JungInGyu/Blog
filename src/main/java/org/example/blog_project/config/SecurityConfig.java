@@ -32,11 +32,10 @@ public class SecurityConfig {
                         .requestMatchers("/css/**","/js/**","style/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/register", "/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/","/loginform","/mypage").permitAll()
-
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenizer), UsernamePasswordAuthenticationFilter.class)
-                .formLogin(form -> form.disable())
+                .formLogin(formLogin -> formLogin.disable())
                 .sessionManagement(sessionManagement -> sessionManagement
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable())

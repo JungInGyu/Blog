@@ -56,7 +56,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity login(@RequestBody @Valid UserLoginDto userLoginDto, HttpServletResponse response, BindingResult bindingResult) throws IOException {
+    public ResponseEntity login(@ModelAttribute @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response ) throws IOException {
         if (bindingResult.hasErrors()){
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
