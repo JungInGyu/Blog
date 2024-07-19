@@ -16,24 +16,22 @@ import java.util.List;
 @Component
 @Slf4j
 public class JwtTokenizer {
-
-    @Value("${jwt.refresh}")
-    private String refreshSecretString;
-
+    private byte[] accessSecret;
     private byte[] refreshSecret;
 
-    public static final Long REFRESH_TOKEN_EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000L; // 7일
+    public static Long ACCESS_TOKEN_EXPIRE_COUNT = 30 * 60 * 1000L; //30분
+    public static Long REFRESH_TOKEN_EXPIRE_COUNT=7*24*60*60*1000L; //7일
 
-    @PostConstruct
-    public void init() {
-        this.refreshSecret = refreshSecretString.getBytes(StandardCharsets.UTF_8);
+    public JwtTokenizer(@Value("${jwt.secretkey}")String accessSecret, @Value("${jwt.refreshKey}") String refreshSecret){
+        this.accessSecret = accessSecret.getBytes(StandardCharsets.UTF_8);
+        this.refreshSecret = refreshSecret.getBytes(StandardCharsets.UTF_8);
     }
 
-    private String createToken(Long id, String email, String name, String uid, List<String> roles, Long expire, byte[] secretKey){
+    private String createToken(Long id, String email, String name, String username, List<String> roles, Long expire, byte[] secretKey){
         Claims claims = Jwts.claims().setSubject(email);
 
         //필요한 정보들을 저장한다.
-        claims.put("uid",uid);
+        claims.put("username",username);
         claims.put("name",name);
         claims.put("userId",id);
         claims.put("roles",roles);
@@ -46,10 +44,14 @@ public class JwtTokenizer {
                 .compact();
     }
 
+    public String createAccessToken(Long id, String email,String name ,String username, List<String> roles){
+        return createToken(id,email,name,username,roles,ACCESS_TOKEN_EXPIRE_COUNT,accessSecret);
+    }
     //REFRESH TOKEN 생성
     public String createRefreshToken(Long id, String email, String name, String username, List<String> roles){
-        return createToken(id,email,name,username,roles,REFRESH_TOKEN_EXPIRE_TIME,refreshSecret);
+        return createToken(id,email,name,username,roles,REFRESH_TOKEN_EXPIRE_COUNT,refreshSecret);
     }
+
     public static Key getSigningKey(byte[] secretKey){
         return Keys.hmacShaKeyFor(secretKey);
     }
@@ -69,6 +71,9 @@ public class JwtTokenizer {
                 .getBody();
     }
 
+    public Claims parseAccessToken(String token) {
+        return parseToken(token, accessSecret);
+    }
     public Claims parseRefreshToken(String refreshToken) {
         return parseToken(refreshToken, refreshSecret);
     }

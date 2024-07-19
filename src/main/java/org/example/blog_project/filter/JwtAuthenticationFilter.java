@@ -32,32 +32,18 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenizer jwtTokenizer;
 
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String token = getJwtFromRequest(request); //accessToken 얻어냄.
-        if(StringUtils.hasText(token)){
-            try{
-                getAuthentication(token);
-            }catch (ExpiredJwtException e){
-                request.setAttribute("exception", JwtExceptionCode.EXPIRED_TOKEN.getCode());
-                log.error("Expired Token : {}",token,e);
-                throw new BadCredentialsException("Expired token exception", e);
-            }catch (UnsupportedJwtException e){
-                request.setAttribute("exception", JwtExceptionCode.UNSUPPORTED_TOKEN.getCode());
-                log.error("Unsupported Token: {}", token, e);
-                throw new BadCredentialsException("Unsupported token exception", e);
-            } catch (MalformedJwtException e) {
-                request.setAttribute("exception", JwtExceptionCode.INVALID_TOKEN.getCode());
-                log.error("Invalid Token: {}", token, e);
-                throw new BadCredentialsException("Invalid token exception", e);
-            } catch (IllegalArgumentException e) {
-                request.setAttribute("exception", JwtExceptionCode.NOT_FOUND_TOKEN.getCode());
-                log.error("Token not found: {}", token, e);
-                throw new BadCredentialsException("Token not found exception", e);
-            } catch (Exception e) {
-                log.error("JWT Filter - Internal Error: {}", token, e);
-                throw new BadCredentialsException("JWT filter internal exception", e);
+        String token = getJwtFromRequest(request);
+        if (StringUtils.hasText(token)) {
+            try {
+                Authentication authentication = getAuthentication(token);
+                if (authentication != null) {
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            } catch (ExpiredJwtException | UnsupportedJwtException | MalformedJwtException | IllegalArgumentException e) {
+                log.error("JWT Filter - Exception: {}", token, e);
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token error");
             }
         }
         filterChain.doFilter(request, response);
@@ -80,25 +66,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private void getAuthentication(String token){
-        Claims claims = jwtTokenizer.parseRefreshToken(token);
+    private Authentication getAuthentication(String token) {
+        Claims claims = jwtTokenizer.parseAccessToken(token);
+        if (claims == null) {
+            return null;
+        }
         String email = claims.getSubject();
         Long userId = claims.get("userId", Long.class);
         String name = claims.get("name", String.class);
         String username = claims.get("username", String.class);
         List<GrantedAuthority> authorities = getGrantedAuthorities(claims);
 
-        CustomUserDetails userDetails = new CustomUserDetails(username,"",name,authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()));
+        CustomUserDetails userDetails = new CustomUserDetails(username, "", name, authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()));
 
         Authentication authentication = new JwtAuthenticationToken(authorities,userDetails,null);
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        return authentication;
     }
 
-    private List<GrantedAuthority> getGrantedAuthorities(Claims claims){
-        List<String> roles = (List<String>)claims.get("roles");
+    private List<GrantedAuthority> getGrantedAuthorities(Claims claims) {
+        List<String> roles = (List<String>) claims.get("roles");
         List<GrantedAuthority> authorities = new ArrayList<>();
-        for (String role : roles){
-            authorities.add(()->role);
+        for (String role : roles) {
+            authorities.add(() -> role);
         }
         return authorities;
     }

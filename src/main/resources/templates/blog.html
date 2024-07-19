@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,7 +16,11 @@
             <button>Search</button>
         </div>
         <div class="auth-links">
-            <a href="http://localhost:8080/loginform">Login</a>
+            <span th:if="${#authorization.expression('isAuthenticated()')}" th:text="${#authentication.name + '님'}">Username</span>
+            <a href="/loginform" th:if="${#authorization.expression('!isAuthenticated()')}">Login</a>
+            <form th:if="${#authorization.expression('isAuthenticated()')}" th:action="@{/logout}" method="post" style="display: inline;">
+                <button type="submit">Logout</button>
+            </form>
         </div>
     </nav>
 </header>

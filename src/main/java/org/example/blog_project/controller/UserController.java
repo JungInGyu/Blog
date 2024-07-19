@@ -1,5 +1,6 @@
 package org.example.blog_project.controller;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,6 +23,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,39 +58,87 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity login(@ModelAttribute @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response ) throws IOException {
+    public String login(@ModelAttribute @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response, RedirectAttributes redirectAttributes) throws IOException {
         if (bindingResult.hasErrors()){
-            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+            return "loginform"; // 로그인 폼으로 다시 이동
         }
 
         User user = userService.findByUid(userLoginDto.getUsername());
 
-        if (!passwordEncoder.matches(userLoginDto.getPassword(), user.getPassword())){
-            return new ResponseEntity("비밀번호가 올바르지 않습니다",HttpStatus.UNAUTHORIZED);
+        if (user == null || !passwordEncoder.matches(userLoginDto.getPassword(), user.getPassword())) {
+            redirectAttributes.addFlashAttribute("error", "아이디 또는 비밀번호가 올바르지 않습니다");
+            return "redirect:/loginform"; // 로그인 페이지로 리다이렉트
         }
 
         List<String> roles = user.getRoles().stream().map(Role::getName).collect(Collectors.toList());
 
-        String refreshToken = jwtTokenizer.createRefreshToken(user.getUser_id(),user.getEmail(),user.getName(), user.getUid(),roles);
-        RefreshToken refreshTokenEntitiy = new RefreshToken();
-        refreshTokenEntitiy.setValue((refreshToken));
-        refreshTokenEntitiy.setUserId(user.getUser_id());
+        String accessToken = jwtTokenizer.createAccessToken(user.getUser_id(),user.getEmail(),user.getName(),user.getUid(),roles);
+        String refreshToken = jwtTokenizer.createRefreshToken(user.getUser_id(), user.getEmail(), user.getName(), user.getUid(), roles);
 
-        refreshTokenService.addRefreshToken(refreshTokenEntitiy);
+        RefreshToken refreshTokenEntity = new RefreshToken();
+        refreshTokenEntity.setValue(refreshToken);
+        refreshTokenEntity.setUserId(user.getUser_id());
 
-        UserLoginResponseDto loginResponseDto = UserLoginResponseDto.builder()
-                .refreshToken(refreshToken)
-                .userId(user.getUser_id())
-                .name(user.getName())
-                .build();
+        refreshTokenService.addRefreshToken(refreshTokenEntity);
 
-        Cookie refreshTokenCookie = new Cookie("refreshToken",refreshToken);
+
+        Cookie accessTokenCookie = new Cookie("refreshToken", refreshToken);
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setMaxAge(Math.toIntExact(JwtTokenizer.ACCESS_TOKEN_EXPIRE_COUNT/1000));
+
+        Cookie refreshTokenCookie = new Cookie("accessToken", refreshToken);
         refreshTokenCookie.setHttpOnly(true);
         refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(Math.toIntExact(JwtTokenizer.REFRESH_TOKEN_EXPIRE_TIME/10000));
+        refreshTokenCookie.setMaxAge(Math.toIntExact(JwtTokenizer.REFRESH_TOKEN_EXPIRE_COUNT/1000));
 
+        response.addCookie(accessTokenCookie);
         response.addCookie(refreshTokenCookie);
-        return new ResponseEntity(loginResponseDto, HttpStatus.OK);
+
+        // 로그인 성공 후 메인 페이지나 대시보드로 리다이렉트
+        return "redirect:/blog";
+    }
+
+    @PostMapping("/refreshToken")
+    public ResponseEntity refreshToken(HttpServletRequest request, HttpServletResponse response){
+        String refreshToken = null;
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null){
+            for (Cookie cookie : cookies){
+                if ("refreshToken".equals(cookie.getName())){
+                    refreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
+        if (refreshToken == null){
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+        Claims claims = jwtTokenizer.parseRefreshToken(refreshToken);
+        Long userId = Long.valueOf ((Integer)claims.get("userId"));
+
+        User user = userService.getUser(userId).orElseThrow(() -> new IllegalArgumentException("사용자를 찾지 못했습니다."));
+
+        List roles = (List)claims.get("roles");
+
+        String accessToken = jwtTokenizer.createAccessToken(userId, user.getEmail(), user.getName(), user.getUid(), roles);
+
+        Cookie accessTokenCookie = new Cookie("accessToken",accessToken);
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setMaxAge(Math.toIntExact(JwtTokenizer.ACCESS_TOKEN_EXPIRE_COUNT / 1000));
+
+        response.addCookie(accessTokenCookie);
+
+        UserLoginResponseDto responseDto = UserLoginResponseDto.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .name(user.getName())
+                .userId(user.getUser_id())
+                .build();
+
+
+        return new ResponseEntity(responseDto, HttpStatus.OK);
     }
 
     @PostMapping("/register")
@@ -105,7 +155,7 @@ public class UserController {
         return "loginform";
     }
 
-    @GetMapping
+    @GetMapping("/mypage")
     public String myPage(){
         return "mypage";
     }

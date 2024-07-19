@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -44,11 +45,8 @@ public class UserService {
         return userRepository.findByUid(uid);
     }
 
-    public boolean isIdDuplicate(String uid){
-        return userRepository.existsByUid(uid);
-    }
-
-    public boolean isEmailDuplicate(String email){
-        return userRepository.existsByEmail(email);
+    @Transactional(readOnly = true)
+    public Optional<User> getUser(Long id){
+        return userRepository.findById(id);
     }
 }
